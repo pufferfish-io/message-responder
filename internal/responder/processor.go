@@ -6,7 +6,14 @@ import (
 	hdlr "message-responder/internal/responder/handler"
 )
 
-func ProcessMessage(msg mdl.NormalizedRequest) (mdl.NormalizedResponse, error) {
+type RespondProcessor struct {
+}
+
+func NewRespondProcessor() *RespondProcessor {
+	return &RespondProcessor{}
+}
+
+func (RespondProcessor) ProcessMessage(msg mdl.NormalizedRequest) (mdl.NormalizedResponse, error) {
 	handlers := []absrct.Handler{
 		hdlr.HasFileHandler{},
 		hdlr.ContainsBibaHandler{},
