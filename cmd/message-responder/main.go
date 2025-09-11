@@ -2,9 +2,8 @@ package main
 
 import (
 	"context"
-	"log"
-	cfg "message-responder/internal/config"
-	cfgModel "message-responder/internal/config/model"
+	"message-responder/internal/config"
+	"message-responder/internal/logger"
 	"message-responder/internal/messaging"
 	"message-responder/internal/processor"
 	"message-responder/internal/responder"
@@ -14,32 +13,52 @@ import (
 )
 
 func main() {
-	log.Println("🚀 Starting message-responder...")
+	lg, cleanup := logger.NewZapLogger()
+	defer cleanup()
+
+	lg.Info("🚀 Starting message-responder…")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	kafkaConf, err := cfg.LoadSection[cfgModel.KafkaConfig]()
+	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("❌ Failed to load Kafka config: %v", err)
+		lg.Error("❌ Failed to load config: %v", err)
+		os.Exit(1)
 	}
 
+	producer, err := messaging.NewKafkaProducer(messaging.Option{
+		Logger:       lg,
+		Broker:       cfg.Kafka.BootstrapServersValue,
+		SaslUsername: cfg.Kafka.SaslUsername,
+		SaslPassword: cfg.Kafka.SaslPassword,
+		ClientID:     cfg.Kafka.ClientID,
+	})
 	if err != nil {
-		log.Fatalf("❌ Failed to create S3 uploader: %v", err)
+		lg.Error("❌ Failed to create producer: %v", err)
+		os.Exit(1)
 	}
+	defer producer.Close()
 
-	respondProcessor := responder.NewRespondProcessor()
-	normalizer := processor.NewMessageResponder(kafkaConf.ResponseMessageTopicName, respondProcessor)
-
-	handler := func(msg []byte) error {
-		return normalizer.Handle(ctx, msg)
+	var handlers = []processor.Handler{
+		responder.NewHasFileHandler(cfg.Kafka.OcrTopicName, producer),
+		responder.NewDefaultHandler(),
 	}
+	responder := processor.NewMessageResponder(cfg.Kafka.ResponseTopicName, producer, handlers, lg)
 
-	messaging.Init(kafkaConf.BootstrapServersValue)
-
-	consumer, err := messaging.NewConsumer(kafkaConf.BootstrapServersValue, kafkaConf.RequestMessageGroupId, kafkaConf.RequestMessageTopicName, handler)
+	consumer, err := messaging.NewKafkaConsumer(messaging.ConsumerOption{
+		Logger:       lg,
+		Broker:       cfg.Kafka.BootstrapServersValue,
+		GroupID:      cfg.Kafka.GroupID,
+		Topics:       []string{cfg.Kafka.RequestTopicName},
+		Handler:      responder,
+		SaslUsername: cfg.Kafka.SaslUsername,
+		SaslPassword: cfg.Kafka.SaslPassword,
+		ClientID:     cfg.Kafka.ClientID,
+	})
 	if err != nil {
-		log.Fatalf("❌ Failed to create consumer: %v", err)
+		lg.Error("❌ Failed to create consumer: %v", err)
+		os.Exit(1)
 	}
 
 	go func() {
@@ -50,6 +69,7 @@ func main() {
 	}()
 
 	if err := consumer.Start(ctx); err != nil {
-		log.Fatalf("❌ Consumer error: %v", err)
+		lg.Error("❌ Consumer error: %v", err)
+		os.Exit(1)
 	}
 }
