@@ -35,9 +35,13 @@ type MediaObject struct {
 	S3URL          string  `json:"s3_url"`
 }
 type NormalizedResponse struct {
-	ChatID           int64  `json:"chat_id"`
-	Text             string `json:"text,omitempty"`
-	Silent           bool   `json:"silent,omitempty"`
-	ReplyToMessageID *int   `json:"reply_to_message_id,omitempty"`
-	Context          any    `json:"context,omitempty"`
+	ChatID         int64     `json:"chat_id"`
+	Text           string    `json:"text,omitempty"`
+	Silent         bool      `json:"silent,omitempty"`
+	Context        any       `json:"context,omitempty"`
+	Source         string    `json:"source"`
+	UserID         int64     `json:"user_id"`
+	Username       *string   `json:"username,omitempty"`
+	Timestamp      time.Time `json:"timestamp"`
+	OriginalUpdate any       `json:"original_update"`
 }

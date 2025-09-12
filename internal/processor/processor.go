@@ -46,23 +46,25 @@ func (t *MessageResponder) Handle(ctx context.Context, raw []byte) error {
 		requestMessage.ChatID, requestMessage.UserID, textPresent, len(requestMessage.Media),
 	)
 
-	var response contract.NormalizedResponse
+	response := contract.NormalizedResponse{
+		ChatID:         requestMessage.ChatID,
+		Source:         requestMessage.Source,
+		UserID:         requestMessage.UserID,
+		Username:       requestMessage.Username,
+		Timestamp:      requestMessage.Timestamp,
+		OriginalUpdate: requestMessage.OriginalUpdate,
+	}
+
 	matched := ""
 	for _, h := range t.handlers {
 		t.logger.Debug("trying handler: %T", h)
 		result, ok, err := h.TryHandle(ctx, requestMessage)
 		if ok {
 			if err != nil {
-                response = contract.NormalizedResponse{
-                    ChatID: requestMessage.ChatID,
-                    Text:   "На сервере произошла ошибка, мы уже начали исправлять данную проблему.",
-                }
+				response.Text = "На сервере произошла ошибка, мы уже начали исправлять данную проблему."
 				t.logger.Error("handler error (used fallback text): %T err=%v", h, err)
 			} else {
-				response = contract.NormalizedResponse{
-					ChatID: requestMessage.ChatID,
-					Text:   result.Text,
-				}
+				response.Text = result.Text
 				matched := fmt.Sprintf("%T", h)
 				t.logger.Info("matched handler: %s", matched)
 			}
