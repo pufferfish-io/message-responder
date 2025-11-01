@@ -1,46 +1,15 @@
 # message-responder
 
-Service that consumes normalized Telegram updates from Kafka and responds with guidance or forwards image OCR requests.
+## Recreate gRPC
 
-## Requirements
+```
+go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-- Go 1.23+
+export PATH="$PATH:$(go env GOPATH)/bin"
 
-## Env
-
-- MSG_RESP_KAFKA_BOOTSTRAP_SERVERS_VALUE — Kafka broker, e.g. `localhost:9092`
-- MSG_RESP_KAFKA_GROUP_ID — consumer group id
-- MSG_RESP_KAFKA_REQUEST_TOPIC_NAME — incoming requests topic
-- MSG_RESP_KAFKA_RESPONSE_TOPIC_NAME — outgoing responses topic
-- MSG_RESP_KAFKA_OCR_TOPIC_NAME — OCR requests topic
-- MSG_RESP_KAFKA_SASL_USERNAME / MSG_RESP_KAFKA_SASL_PASSWORD — optional SASL/SCRAM creds
-- MSG_RESP_KAFKA_CLIENT_ID — client id
-
-## Run
-
-- set -a && source .env && set +a && go run ./cmd/message-responder
-- or: export $(cat .env | xargs) && go run ./cmd/message-responder
-
-## Setup
-
-- go mod tidy
-
-## Build
-
-- go build -v -o bin/message-responder ./cmd/message-responder
-
-## Docker
-
-- docker buildx build --no-cache --progress=plain .
-
-## Release (tags)
-
-- git tag v0.1.1 && git push origin v0.1.1
-
-## Notes
-
-- SASL is enabled only if username or password is set.
-- Logging uses Zap production logger.
+protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/presentation/proto/ocr/v1/ocr.proto
+```
 
 ## Command Guide
 
@@ -89,8 +58,8 @@ docker buildx build --no-cache --progress=plain .
 Cuts a release tag and pushes it to remote.
 
 ```
-git tag v0.0.1
-git push origin v0.0.1
+git tag v0.1.1
+git push origin v0.1.1
 ```
 
 ### Manage tags

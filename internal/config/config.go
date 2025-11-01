@@ -8,17 +8,17 @@ import (
 )
 
 type Kafka struct {
-    BootstrapServersValue string `validate:"required" env:"BOOTSTRAP_SERVERS_VALUE"`
-    GroupID               string `validate:"required" env:"GROUP_ID"`
-    RequestTopicName      string `validate:"required" env:"REQUEST_TOPIC_NAME"`
-    ResponseTopicName     string `validate:"required" env:"RESPONSE_TOPIC_NAME"`
-    SaslUsername          string `env:"SASL_USERNAME"`
-    SaslPassword          string `env:"SASL_PASSWORD"`
-    ClientID              string `env:"CLIENT_ID"`
-    OcrTopicName          string `validate:"required" env:"OCR_TOPIC_NAME"`
+	BootstrapServersValue string `validate:"required" env:"BOOTSTRAP_SERVERS_VALUE"`
+	GroupID               string `validate:"required" env:"GROUP_ID_MESSAGE_RESPONDER"`
+	RequestTopicName      string `validate:"required" env:"TOPIC_NAME_TELEGRAM_NORMALIZED"`
+	ResponseTopicName     string `validate:"required" env:"TOPIC_NAME_TG_RESPONSE_PREPARER"`
+	SaslUsername          string `env:"SASL_USERNAME"`
+	SaslPassword          string `env:"SASL_PASSWORD"`
+	ClientID              string `env:"CLIENT_ID_MESSAGE_RESPONDER"`
+	OcrTopicName          string `validate:"required" env:"TOPIC_NAME_OCR_REQUEST"`
 }
 type Config struct {
-	Kafka Kafka `envPrefix:"MSG_RESP_KAFKA_"`
+	Kafka Kafka `envPrefix:"KAFKA_"`
 }
 
 func Load() (*Config, error) {
