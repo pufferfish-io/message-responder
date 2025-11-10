@@ -16,7 +16,7 @@ jobs:
       packages: write
 
     env:
-      IMAGE: ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+      IMAGE_BASE: ghcr.io/${{ github.repository }}
 
     steps:
       - name: 🔽 Checkout source
@@ -29,16 +29,19 @@ jobs:
         id: meta
         run: |
           echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          echo "IMAGE_VERSION=${IMAGE_BASE}:${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          echo "IMAGE_LATEST=${IMAGE_BASE}:latest" >> "$GITHUB_ENV"
           echo "BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
           echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
-      - name: 🐳 Build & Push (${{ env.IMAGE }})
+      - name: 🐳 Build & Push (${{ env.IMAGE_VERSION }})
         run: |
-          echo "📦 Building and pushing: $IMAGE"
+          echo "📦 Building and pushing: $IMAGE_VERSION"
           docker build \
             --build-arg VERSION="${TAG}" \
             --build-arg COMMIT="${SHORT_SHA}" \
             --build-arg BUILT_AT="${BUILT_AT}" \
-            -t "$IMAGE" .
-          docker push "$IMAGE"
-
+            -t "$IMAGE_VERSION" \
+            -t "$IMAGE_LATEST" .
+          docker push "$IMAGE_VERSION"
+          docker push "$IMAGE_LATEST"
