@@ -1,74 +1,39 @@
 # message-responder
 
-## Recreate gRPC
+## Что делает
 
-```
-go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+1. Подписывается на Kafka-топик `KAFKA_TOPIC_NAME_TELEGRAM_NORMALIZED`, получает `NormalizedRequest` (см. `internal/contract`), логирует метаданные и пробует обработать сообщение последовательно всеми хендлерами.
+2. Если сообщение содержит изображение, `HasFileHandler` пересылает десериализованный `OcrRequest` в `KAFKA_TOPIC_NAME_OCR_REQUEST` и возвращает пользователю подтверждение.
+3. Если ни один обработчик не подошёл, `DefaultHandler` отвечает шаблонным текстом про ожидание изображения.
+4. Ответы сериализуются как `NormalizedResponse`, добавляют префикс исходного `source` к `KAFKA_TOPIC_NAME_TG_RESPONSE_PREPARER` и отправляются туда через Kafka-продюсер.
 
-export PATH="$PATH:$(go env GOPATH)/bin"
+## Запуск
 
-protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative internal/presentation/proto/ocr/v1/ocr.proto
-```
+1. Задайте окружение (см. список ниже).
+2. Соберите и запустите локально:
+   ```bash
+   go run ./cmd/message-responder
+   ```
+3. Или соберите Docker-образ и запустите его с переменными:
+   ```bash
+   docker build -t message-responder .
+   docker run --rm -e ... message-responder
+   ```
 
-## Command Guide
+## Переменные окружения
 
-### Run with exported .env (one‑liner)
+Все переменные обязательны, кроме `SASL_USERNAME`/`SASL_PASSWORD`, если кластер Kafka работает без SASL.
 
-Exports all variables from `.env` into the current shell and runs the service.
+- `KAFKA_BOOTSTRAP_SERVERS_VALUE` — список брокеров (`host:port[,host:port]`).
+- `KAFKA_GROUP_ID_MESSAGE_RESPONDER` — `consumer group` для подписки на запросы.
+- `KAFKA_TOPIC_NAME_TELEGRAM_NORMALIZED` — входной топик с нормализованными событиями Telegram.
+- `KAFKA_TOPIC_NAME_TG_RESPONSE_PREPARER` — суффикс ответного топика (`source + response`, где `source` берётся из запроса).
+- `KAFKA_CLIENT_ID_MESSAGE_RESPONDER` — идентификатор Kafka-клиента (продюсер и консьюмер).
+- `KAFKA_SASL_USERNAME` и `KAFKA_SASL_PASSWORD` — если нуждается Kafka в SASL/PLAIN.
+- `KAFKA_TOPIC_NAME_OCR_REQUEST` — топик с запросами на OCR (передаётся внешнему OCR-процессу).
 
-```
-export $(cat .env | xargs) && go run ./cmd/message-responder
-```
+## Примечания
 
-### Run with `source` (safer for complex values)
-
-Loads `.env` preserving quotes and special characters, then runs the service.
-
-```
-set -a && source .env && set +a && go run ./cmd/message-responder
-```
-
-### Fetch/clean module deps
-
-Resolves dependencies and prunes unused ones.
-
-```
-go mod tidy
-```
-
-### Verbose build (diagnostics)
-
-Builds the binary with verbose and command tracing. Removes old binary after build to keep the tree clean.
-
-```
-go build -v -x ./cmd/message-responder && rm -f message-responder
-```
-
-### Docker build (Buildx)
-
-Builds the image with detailed progress logs and without cache.
-
-```
-docker buildx build --no-cache --progress=plain .
-```
-
-### Create and push tag
-
-Cuts a release tag and pushes it to remote.
-
-```
-git tag v0.1.1
-git push origin v0.1.1
-```
-
-### Manage tags
-
-List all tags, delete a tag locally and remotely, verify deletion.
-
-```
-git tag -l
-git tag -d vX.Y.Z
-git push --delete origin vX.Y.Z
-git ls-remote --tags origin | grep 'refs/tags/vX.Y.Z$'
-```
+- Переход к OCR идёт только при наличии хотя бы одного медиа-объекта, у которого MIME-тип начинается с `image/` или тип явно указывает на изображение (`image`, `photo`, `picture`, `img`).
+- Ответы публикуются в топик с суффиксом `KAFKA_TOPIC_NAME_TG_RESPONSE_PREPARER`, причём `source` из запроса добавляется в начало названия топика.
+- Логика отправки на OCR и обработки ответа сосредоточена в `internal/responder`, Kafka-коммуникация в `internal/messaging`, конфигурация в `internal/config`.
