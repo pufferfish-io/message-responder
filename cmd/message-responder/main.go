@@ -33,6 +33,7 @@ func main() {
 		SaslUsername: cfg.Kafka.SaslUsername,
 		SaslPassword: cfg.Kafka.SaslPassword,
 		ClientID:     cfg.Kafka.ClientID,
+		Context:      ctx,
 	})
 	if err != nil {
 		lg.Error("❌ Failed to create producer: %v", err)
@@ -55,6 +56,7 @@ func main() {
 		SaslUsername: cfg.Kafka.SaslUsername,
 		SaslPassword: cfg.Kafka.SaslPassword,
 		ClientID:     cfg.Kafka.ClientID,
+		Context:      ctx,
 	})
 	if err != nil {
 		lg.Error("❌ Failed to create consumer: %v", err)
