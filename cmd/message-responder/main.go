@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"message-responder/internal/config"
 	"message-responder/internal/logger"
 	"message-responder/internal/messaging"
@@ -71,7 +72,11 @@ func main() {
 	}()
 
 	if err := consumer.Start(ctx); err != nil {
-		lg.Error("❌ Consumer error: %v", err)
-		os.Exit(1)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			lg.Info("consumer stopped: %v", err)
+		} else {
+			lg.Error("❌ Consumer error: %v", err)
+			os.Exit(1)
+		}
 	}
 }
