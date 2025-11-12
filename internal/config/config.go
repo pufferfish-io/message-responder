@@ -10,7 +10,7 @@ import (
 type Kafka struct {
 	BootstrapServersValue string `validate:"required" env:"BOOTSTRAP_SERVERS_VALUE"`
 	GroupID               string `validate:"required" env:"GROUP_ID_MESSAGE_RESPONDER"`
-	RequestTopicName      string `validate:"required" env:"TOPIC_NAME_TELEGRAM_NORMALIZED"`
+	RequestTopicName      string `validate:"required" env:"TOPIC_NAME_NORMALIZED_MSG"`
 	ResponseTopicName     string `validate:"required" env:"TOPIC_NAME_TG_RESPONSE_PREPARER"`
 	SaslUsername          string `env:"SASL_USERNAME"`
 	SaslPassword          string `env:"SASL_PASSWORD"`
