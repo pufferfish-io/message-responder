@@ -1,39 +1,39 @@
-# message-responder
+```mermaid
+flowchart LR
+  UPD["Нормализованные события (VK/Telegram)"] -->|Получить сообщение| RESP["message-responder"]
+  RESP -->|Нет медиа| USER["Ответ пользователю"]
+  RESP -->|Есть изображение| OCR["Очередь OCR"]
+```
 
-## Что делает
+## О приложении
 
-1. Подписывается на Kafka-топик `KAFKA_TOPIC_NAME_NORMALIZED_MSG`, получает `NormalizedRequest` (см. `internal/contract`), логирует метаданные и пробует обработать сообщение последовательно всеми хендлерами.
-2. Если сообщение содержит изображение, `HasFileHandler` пересылает десериализованный `OcrRequest` в `KAFKA_TOPIC_NAME_OCR_REQUEST` и возвращает пользователю подтверждение.
-3. Если ни один обработчик не подошёл, `DefaultHandler` отвечает шаблонным текстом про ожидание изображения.
-4. Ответы сериализуются как `NormalizedResponse`, добавляют префикс исходного `source` к `KAFKA_TOPIC_NAME_TG_RESPONSE_PREPARER` и отправляются туда через Kafka-продюсер.
+message-responder — событийный сервис, который читает нормализованные апдейты Telegram/VK из Kafka, пытается подобрать подходящий обработчик и формирует ответ для пользователя. Сейчас в него входят два хендлера: `HasFileHandler` перенаправляет сообщения с изображениями в OCR‑цепочку, а `DefaultHandler` показывает подсказку, если пришёл текст или неподдерживаемый формат.
 
-## Запуск
+## Роль приложения в архитектуре проекта
 
-1. Задайте окружение (см. список ниже).
-2. Соберите и запустите локально:
+Компонент стоит в обоих конвейерах сразу после `vk-normalizer` и `telegram-normalizer`:
+
+```mermaid
+flowchart LR
+    vk-forwarder --> vk-normalizer --> message-responder --> message-responder-ocr --> doc2text --> vk-response-preparer --> vk-sender
+    telegram-forwarder --> telegram-normalizer --> message-responder --> message-responder-ocr --> doc2text --> telegram-response-preparer --> telegram-sender
+```
+Он является точкой принятия решения: при наличии медиа пересылает событие в `message-responder-ocr` (через отдельный Kafka‑топик), а пользователю отправляет уведомление «изображение взято в работу». Если картинок нет, сервис даёт понятный ответ и завершает цепочку, чтобы не грузить OCR.
+
+## Локальный запуск
+
+1. Подготовьте окружение: Go ≥ 1.24, доступ к Kafka (SASL/PLAIN опционально), а также настроенные upstream‑сервисы (`message-responder-ocr`, `response-preparer`, `sender`), чтобы видеть полный поток.
+2. Экспортируйте переменные окружения для Kafka:
+   - `KAFKA_BOOTSTRAP_SERVERS_VALUE` — список брокеров.
+   - `KAFKA_GROUP_ID_MESSAGE_RESPONDER` — consumer group для чтения нормализованных сообщений.
+   - `KAFKA_TOPIC_NAME_NORMALIZED_MSG` — входной топик от нормализаторов.
+   - `KAFKA_TOPIC_NAME_OCR_REQUEST` — куда отправлять заявки на OCR.
+   - `KAFKA_TOPIC_NAME_TEMP_RESPONSE_PREPARER` — базовое имя выходного топика для подготовителей ответов; реальный топик строится как `<source><суффикс>`.
+   - `KAFKA_CLIENT_ID_MESSAGE_RESPONDER` — client id Kafka.
+   - `KAFKA_SASL_USERNAME`/`KAFKA_SASL_PASSWORD` — задавайте только если брокер требует SASL/PLAIN.
+3. Соберите и запустите сервис:
    ```bash
    go run ./cmd/message-responder
    ```
-3. Или соберите Docker-образ и запустите его с переменными:
-   ```bash
-   docker build -t message-responder .
-   docker run --rm -e ... message-responder
-   ```
-
-## Переменные окружения
-
-Все переменные обязательны, кроме `SASL_USERNAME`/`SASL_PASSWORD`, если кластер Kafka работает без SASL.
-
-- `KAFKA_BOOTSTRAP_SERVERS_VALUE` — список брокеров (`host:port[,host:port]`).
-- `KAFKA_GROUP_ID_MESSAGE_RESPONDER` — `consumer group` для подписки на запросы.
-- `KAFKA_TOPIC_NAME_NORMALIZED_MSG` — входной топик с нормализованными событиями Telegram.
-- `KAFKA_TOPIC_NAME_TG_RESPONSE_PREPARER` — суффикс ответного топика (`source + response`, где `source` берётся из запроса).
-- `KAFKA_CLIENT_ID_MESSAGE_RESPONDER` — идентификатор Kafka-клиента (продюсер и консьюмер).
-- `KAFKA_SASL_USERNAME` и `KAFKA_SASL_PASSWORD` — если нуждается Kafka в SASL/PLAIN.
-- `KAFKA_TOPIC_NAME_OCR_REQUEST` — топик с запросами на OCR (передаётся внешнему OCR-процессу).
-
-## Примечания
-
-- Переход к OCR идёт только при наличии хотя бы одного медиа-объекта, у которого MIME-тип начинается с `image/` или тип явно указывает на изображение (`image`, `photo`, `picture`, `img`).
-- Ответы публикуются в топик с суффиксом `KAFKA_TOPIC_NAME_TG_RESPONSE_PREPARER`, причём `source` из запроса добавляется в начало названия топика.
-- Логика отправки на OCR и обработки ответа сосредоточена в `internal/responder`, Kafka-коммуникация в `internal/messaging`, конфигурация в `internal/config`.
+   Либо используйте образ `docker build -t message-responder .` и передайте те же переменные при запуске контейнера.
+4. Убедитесь, что консьюмер подписан на нужный топик, а ответы появляются в `<source><KAFKA_TOPIC_NAME_TEMP_RESPONSE_PREPARER>`.
